@@ -2,7 +2,8 @@ import cv2
 import sys
 import os
 import numpy as np
-import scipy.signal as signal
+import scipy.signal
+import scipy.fft
 import matplotlib.pyplot as plt
 from util import *
 
@@ -110,11 +111,16 @@ class CROP_WORD:
         #y_project_array = signal.medfilt(y_project_array, 9)
 
         #signal.find_peaks(y_project_array)
+        y_project_array_fft = scipy.fft.fft(y_project_array)
+        b, a = scipy.signal.butter(8, 0.8, 'lowpass')  # 配置滤波器 8 表示滤波器的阶数
+        #filtedData = scipy.signal.filtfilt(b, a, y_project_array)  # data为要过滤的信号
 
-        b, a = signal.butter(8, 0.8, 'lowpass')  # 配置滤波器 8 表示滤波器的阶数
-        filtedData = signal.filtfilt(b, a, y_project_array)  # data为要过滤的信号
-        self.signal_show(filtedData)
-
+        self.signal_show(y_project_array_fft)
+        self.signal_show(y_project_array)
+        xxx = np.arange(1,1000)
+        yyy = np.sin(xxx)
+        yyy_fft = scipy.fft.fft(yyy)
+        self.signal_show(yyy_fft)
     def signal_show(self,signal_val):
         signal_val = np.array(signal_val)
 
@@ -127,14 +133,17 @@ class CROP_WORD:
         yvals = p1(xxx)
 
 
-        num_peak = signal.find_peaks(yvals, distance=10)  # distance表极大值点的距离至少大于等于10个水平单位
+        num_peak = scipy.signal.find_peaks(yvals, distance=10)  # distance表极大值点的距离至少大于等于10个水平单位
         print(num_peak[0])
         print('the number of peaks is ' + str(len(num_peak[0])))
 
-        #plt.plot(xxx, yyy, '*', label='original values')
-        plt.plot(xxx, yvals, 's', label='signal values')
+        plt.plot(xxx, yyy,      '*',             label='v1')
+        #plt.plot(xxx, yvals, 's',   label='signal fft values')
         plt.xlabel('x axis')
         plt.ylabel('y axis')
+        plt.xlim(-50, 50)
+        # 把x轴的刻度范围设置为-0.5到11，因为0.5不满一个刻度间隔，所以数字不会显示出来，但是能看到一点空白
+        plt.ylim(-50, 50)
         plt.legend(loc=4)
         plt.title('signal')
         for ii in range(len(num_peak[0])):

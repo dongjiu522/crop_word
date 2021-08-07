@@ -132,7 +132,7 @@ def crop_word(th,crop_path,downloadImg=True):
 
     for v_img_index in range(len(v_start)):
         bin_width = abs(v_end[v_img_index] - v_start[v_img_index])
-        if bin_width < 10 :
+        if bin_width < 20 :
             continue
 
         cropImg = th[0:h,v_start[v_img_index]:v_end[v_img_index]]
@@ -170,30 +170,33 @@ def crop_word(th,crop_path,downloadImg=True):
             cv2.line(h_projection_img, (cropImg_w - h_project_array[i],i), (cropImg_w, i), (255))
 
         download_img(h_projection_img, crop_path, "05-crop_v_" + str(v_img_index) + "_h_project_img_done")
-        continue
+        #continue
 
 
+        h_start_sign = 0
+        h_start, h_end = [], []
+        for i in range(len(h_project_array)):
+            if h_project_array[i] > 0 and h_start_sign == 0:
+                h_start.append(i)
+                h_start_sign = 1
+            if h_project_array[i] == 0 and h_start_sign == 1:
+                h_end.append(i)
+                h_start_sign = 0
 
-        hstart , hend, h_start, h_end = 0, 0, 0, 0
-        for j in range(len(h_project_array)):
-            if h_project_array[j] > 0 and hstart == 0:
-                h_start = j
-                hstart = 1
-                hend = 0
-            if h_project_array[j] ==0 and hstart == 1:
-                h_end = j
-                hstart = 0
-                hend = 1
+        for h_img_index in range(len(h_start)):
+            bin_height = abs(h_end[h_img_index] - h_start[h_img_index])
+            if bin_height < cropImg_w /2:
+                continue
 
-            # 当确认了起点和终点之后保存坐标
-            if hend == 1:
-                position.append([h_start, v_start[i], h_end, v_end[i]])
-                hend = 0
+            # 当确认了起点和终点之后保存坐标1`
+            #if hend == 1:
+            #    position.append([h_start, v_start[i], h_end, v_end[i]])
+            #    hend = 0
 
-    # 确定分割位置
-    for p in position:
-        #cv2.rectangle(th, (p[0], p[1]), (p[2], p[3]), (255), 2)
-        download_img(th, crop_path, "06-rectangle_word")
+            cropWord = cropImg[h_start[h_img_index]:h_end[h_img_index],0:w]
+
+            download_img(cropWord, crop_path, "06-crop_word" + str(h_img_index))
+
 
 
 
@@ -247,8 +250,8 @@ path = "./全部合集"
 path = "./全部合集/法帖"
 path = "./全部合集/碑刻"
 path = "./全部合集/墨迹/中字/中中/昆陽城賦"
-path = "./test"
-crop_out_path  = "./crop_result"
+path = "./input"
+crop_out_path  = "./output"
 imgPaths = []
 get_file(path, imgPaths)
 
