@@ -1,7 +1,8 @@
 import cv2
 import os
 import numpy as np
-
+import logging
+logging.basicConfig(format='%(filename)s-[line:%(lineno)d]-%(levelname)s: %(message)s',level=logging.INFO)
 
 # coding: utf-8
 def cv_imread(file_path):
@@ -17,7 +18,7 @@ def download_img(img,out_path,str,downloadImg=True,do_log=False):
         img_path = out_path  + str
         cv_write(img_path, img)
         if do_log == True:
-            print("[SUCESS] imwrite :",img_path)
+            logging.info("[SUCESS] imwrite :",img_path)
 
 def get_file(root_path,all_files):
     '''

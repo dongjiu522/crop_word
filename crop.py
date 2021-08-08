@@ -155,7 +155,7 @@ def crop_word(th,crop_path,downloadImg=True):
 
         print("[Message] : h_project_array_median :", h_project_array_median)
         print("[Message] : h_project_array_mean :", h_project_array_mean)
-        scale = 0.25
+        scale = 0.1
         h_project_array_threshold = min(h_project_array_mean, h_project_array_median) * scale
         print("[Message] : h_project_array_threshold :", h_project_array_threshold)
 
@@ -185,8 +185,8 @@ def crop_word(th,crop_path,downloadImg=True):
 
         for h_img_index in range(len(h_start)):
             bin_height = abs(h_end[h_img_index] - h_start[h_img_index])
-            if bin_height < cropImg_w /2:
-                continue
+            #if bin_height < cropImg_w /10:
+                #continue
 
             # 当确认了起点和终点之后保存坐标1`
             #if hend == 1:
