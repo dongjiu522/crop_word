@@ -150,6 +150,99 @@ class CROP_WORD:
 
         return np.array(y_projection_array), np.array(y_projection_img)
 
+
+    def getPeaksAndTroughs(self,h, rangesize):
+        h = np.array(h).astype(np.uint32)
+        peaks = list()
+        troughs = list()
+        S = 0
+        for x in range(0, len(h) -1):
+            if S == 0:
+                if h[x] > h[x + 1]:
+                    S = 1  ## down
+                else:
+                    S = 2  ## up
+
+            elif S == 1:  ### down
+                if h[x] < h[x + 1]:
+                    S = 2
+                    ## from down to up
+                    if len(troughs):
+                        ## check if need merge
+                        (prev_x, prev_trough) = troughs[-1]
+                        if x - prev_x < rangesize:
+                            if prev_trough > h[x]:
+                                troughs[-1] = (x, h[x])
+                        else:
+                            troughs.append((x, h[x]))
+                    else:
+                        troughs.append((x, h[x]))
+
+
+            elif S == 2:  ## up
+                if h[x] > h[x + 1]:
+                    S = 1
+                    ## from up to down
+                    if len(peaks):
+                        prev_x, prev_peak = peaks[-1]
+                        if x - prev_x < rangesize:
+                            if prev_peak < h[x]:
+                                peaks[-1] = (x, h[x])
+                        else:
+                            peaks.append((x, h[x]))
+                    else:
+                        peaks.append((x, h[x]))
+
+        return peaks, troughs
+
+    def drawLineFromArraryToImg(self, img_colours, array):
+        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
+        img_gray_tmp = img_colours.copy()
+        for i in range(len(array)):
+            if array[i] > 0 :
+                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (255,0,0),5)
+            if array[i] < 0 :
+                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (0,0,255),5)
+        #cv2.imshow("lines",img_gray_tmp)
+        #cv2.waitKey(0)
+        return img_gray_tmp
+
+    def convertPeaksAndTroughsToArrary(self,src_array,src_peaks,peaks_threshold,src_troughs,troughs_threshold):
+
+        dst_array = np.zeros(src_array.shape)
+        for x, y in src_peaks:
+            if y >= peaks_threshold :
+                dst_array[x] = 100
+            else :
+                dst_array[x] = -50
+
+        for x, y in src_troughs:
+            if y < troughs_threshold:
+                dst_array[x] = -100
+            else:
+                dst_array[x] = 50
+        return dst_array
+    def peaksAndTroughsArraryPostProcess(self,arrary):
+        start = 0
+
+        trough_1_index = 0
+        bins = []
+        for i in range(len(arrary)):
+            if arrary[i] == -100:
+                bins.append((trough_1_index,i))
+                trough_1_index=i
+            if i == len(arrary) - 1:
+                bins.append((trough_1_index,i))
+                trough_1_index=i
+        troughs = []
+        for trough_1_index,trough_2_index in bins:
+            for index in range(trough_1_index,trough_2_index):
+                if index < 0  or  index > len(arrary) -1:
+                    continue
+                if arrary[index] == 100:
+                    troughs.append((trough_1_index,trough_2_index))
+        return
+
     def YProjectPostProcess(self, projectArrary,scale):
 
         projectArrary_valid = projectArrary[projectArrary > 0]
@@ -201,10 +294,14 @@ class CROP_WORD:
         #self.array_show(projectArrary)
         #self.two_array_show_at_once(projectArrary, projectArrary_average_1)
         #self.two_array_show_at_once(projectArrary_average_1,projectArrary_average_2)
-        #self.array_extreme_point_show(projectArrary_average_1,moving_average_bin_w/2)
+
         #self.hist_show(projectArrary_average_1)
-        peaks,troughs = self.get_peaks_troughs(projectArrary_average_1,moving_average_bin_w/2)
-        YProject_extreme_point_array = self.convert_peaksANDtroughs_to_arrary(projectArrary_average_1,peaks,projectArrary_threshold,troughs,projectArrary_threshold)
+        a = np.array((200,100,250,110,220))
+        #peaks,troughs = self.getPeaksAndTroughs(projectArrary_average_1,moving_average_bin_w/2)
+        peaks, troughs = self.getPeaksAndTroughs(a, 1)
+        self.array_extreme_point_show(a, 1)
+        YProject_extreme_point_array = self.convertPeaksAndTroughsToArrary(projectArrary_average_1,peaks,projectArrary_threshold,troughs,projectArrary_threshold)
+
         #self.two_array_show_at_once(projectArrary_average_1,YProject_extreme_point_array)
         #print(YProject_extreme_point_array)
         #self.array_show(YProject_extreme_point_array)
@@ -212,90 +309,11 @@ class CROP_WORD:
         return YProject_extreme_point_array
 
 
-    def draw_line_from_arrary_to_img(self,img_colours,array):
-        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
-        img_gray_tmp = img_colours.copy()
-        for i in range(len(array)):
-            if array[i] > 0 :
-                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (255,0,0),5)
-            if array[i] < 0 :
-                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (0,0,255),5)
-        #cv2.imshow("lines",img_gray_tmp)
-        #cv2.waitKey(0)
-        return img_gray_tmp
-
-
-    def hist_show(self,array):
-        hist1, bins = np.histogram(array)  # hist1 每个灰度值的频数
-        cdf = hist1.cumsum()  # 累加频数得累计直方图
-        cdf_normalised = cdf * float(hist1.max() / cdf.max())  # 把累计直方图的比例化到近似直方图
-        plt.plot(cdf_normalised, color='blue')
-        plt.show()
-
-    #
-    def convert_peaksANDtroughs_to_arrary(self,src_array,src_peaks,peaks_threshold,src_troughs,troughs_threshold):
-
-        dst_array = np.zeros(src_array.shape)
-        for x, y in src_peaks:
-            if y >= peaks_threshold :
-                dst_array[x] = 100
-
-        for x, y in src_troughs:
-            if y < troughs_threshold:
-                dst_array[x] = -100
-
-        return dst_array
-
-
-    def get_peaks_troughs(self,h, rangesize):
-        h = np.array(h).astype(np.uint32)
-        peaks = list()
-        troughs = list()
-        S = 0
-        for x in range(1, len(h) - 1):
-            if S == 0:
-                if h[x] > h[x + 1]:
-                    S = 1  ## down
-                else:
-                    S = 2  ## up
-            elif S == 1:
-                if h[x] < h[x + 1]:
-                    S = 2
-                    ## from down to up
-                    if len(troughs):
-                        ## check if need merge
-                        (prev_x, prev_trough) = troughs[-1]
-                        if x - prev_x < rangesize:
-                            if prev_trough > h[x]:
-                                troughs[-1] = (x, h[x])
-                        else:
-                            troughs.append((x, h[x]))
-                    else:
-                        troughs.append((x, h[x]))
-
-
-            elif S == 2:
-                if h[x] > h[x + 1]:
-                    S = 1
-                    ## from up to down
-                    if len(peaks):
-                        prev_x, prev_peak = peaks[-1]
-                        if x - prev_x < rangesize:
-                            if prev_peak < h[x]:
-                                peaks[-1] = (x, h[x])
-                        else:
-                            peaks.append((x, h[x]))
-                    else:
-                        peaks.append((x, h[x]))
-
-        return peaks, troughs
-
-
     def find_word_box(self,img_gray,img_colours):
         h, w = img_gray.shape
         y_project_array, y_project_img = self.YProject(img_gray)
         YProject_extreme_point_array = self.YProjectPostProcess(y_project_array,0.3)
-        img_colours_draw = self.draw_line_from_arrary_to_img(img_colours,YProject_extreme_point_array)
+        img_colours_draw = self.drawLineFromArraryToImg(img_colours,YProject_extreme_point_array)
         download_img(img_colours_draw, self.output_path, "07-img_gray_draw_line")
         #y_project_array = signal.medfilt(y_project_array, 9)
 
@@ -311,6 +329,13 @@ class CROP_WORD:
         #yyy_fft = scipy.fft.fft(yyy)
         #self.signal_show(yyy_fft)
 
+
+    def hist_show(self,array):
+        hist1, bins = np.histogram(array)  # hist1 每个灰度值的频数
+        cdf = hist1.cumsum()  # 累加频数得累计直方图
+        cdf_normalised = cdf * float(hist1.max() / cdf.max())  # 把累计直方图的比例化到近似直方图
+        plt.plot(cdf_normalised, color='blue')
+        plt.show()
     def array_show(self,array1):
         array1 = np.array(array1)
         max_val_array1 = np.max(array1)
@@ -355,7 +380,6 @@ class CROP_WORD:
         #plt.legend(loc=4)
         plt.title('array')
         plt.show()
-
     def two_array_show(self,array1,array2):
 
         array1 = np.array(array1)
@@ -408,11 +432,6 @@ class CROP_WORD:
         # plt.legend(loc=4)
         plt.title('array2')
         plt.show()
-
-
-
-
-
     def array_extreme_point_show(self,array1,distance_th):
         array1 = np.array(array1)
         max_val_array1 = np.max(array1)
@@ -434,11 +453,11 @@ class CROP_WORD:
         plt.ylabel('y axis')
         plt.xlim(0, array_len_array1)
         plt.ylim(0, max_val_array1)
-        plt.xticks(np.arange(0, array_len_array1, (round(array_len_array1 / 100) * 10)))
-        plt.yticks(np.arange(0, max_val_array1, (round(max_val_array1 / 100) * 10)))
+        #plt.xticks(np.arange(0, array_len_array1, (round(array_len_array1 / 100) * 10)))
+        #plt.yticks(np.arange(0, max_val_array1, (round(max_val_array1 / 100) * 10)))
         #plt.legend(loc=4)
         plt.title('array1')
-        peaks,troughs = self.get_peaks_troughs(array1, distance_th)  # distance表极大值点的距离至少大于等于10个水平单位
+        peaks,troughs = self.getPeaksAndTroughs(array1, distance_th)  # distance表极大值点的距离至少大于等于10个水平单位
         #peaks = peaks.astype(np.uint32)
         #troughs = troughs.astype(np.uint32)
         print('the number of peaks is ' + str(len(peaks)))
@@ -453,7 +472,6 @@ if __name__ == '__main__':
     #print(cv2.__version__)
     input_path  = "./input"
     output_path = "./output"
-
     if True == os.path.exists(output_path):
         remove_dirs(output_path)
 
