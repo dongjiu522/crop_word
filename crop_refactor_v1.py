@@ -157,6 +157,7 @@ class CROP_WORD:
         troughs = list()
         S = 0
         for x in range(0, len(h) -1):
+
             if S == 0:
                 if h[x] > h[x + 1]:
                     S = 1  ## down
@@ -193,19 +194,19 @@ class CROP_WORD:
                     else:
                         peaks.append((x, h[x]))
 
+            if x == 0:
+                if h[x] > h[x + 1]:
+                    peaks.append((x,h[x]))
+                else:
+                    troughs.append((x, h[x]))
+            if x == len(h) -2:
+                if h[x] > h[x + 1]:
+                    troughs.append((x+1, h[x+1]))
+                else:
+                    peaks.append((x+1, h[x+1]))
         return peaks, troughs
 
-    def drawLineFromArraryToImg(self, img_colours, array):
-        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
-        img_gray_tmp = img_colours.copy()
-        for i in range(len(array)):
-            if array[i] > 0 :
-                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (255,0,0),5)
-            if array[i] < 0 :
-                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (0,0,255),5)
-        #cv2.imshow("lines",img_gray_tmp)
-        #cv2.waitKey(0)
-        return img_gray_tmp
+
 
     def convertPeaksAndTroughsToArrary(self,src_array,src_peaks,peaks_threshold,src_troughs,troughs_threshold):
 
@@ -225,24 +226,51 @@ class CROP_WORD:
     def peaksAndTroughsArraryPostProcess(self,arrary):
         start = 0
 
-        trough_1_index = 0
+        trough_index = 0
         bins = []
         for i in range(len(arrary)):
             if arrary[i] == -100:
-                bins.append((trough_1_index,i))
-                trough_1_index=i
+                bins.append((trough_index,i))
+                trough_index=i
             if i == len(arrary) - 1:
-                bins.append((trough_1_index,i))
-                trough_1_index=i
+                bins.append((trough_index,i))
+                trough_index=i
         troughs = []
-        for trough_1_index,trough_2_index in bins:
-            for index in range(trough_1_index,trough_2_index):
+        for trough_index_start,trough_index_end in bins:
+            for index in range(trough_index_start,trough_index_end):
                 if index < 0  or  index > len(arrary) -1:
                     continue
                 if arrary[index] == 100:
-                    troughs.append((trough_1_index,trough_2_index))
-        return
+                    troughs.append((trough_index_start,trough_index_end))
+                    break
 
+        return troughs
+    def drawLineFromArraryToImg(self, img_colours, array):
+        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
+        img_gray_tmp = img_colours.copy()
+        for i in range(len(array)):
+            if array[i] > 0 :
+                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (255,0,0),5)
+            if array[i] < 0 :
+                cv2.line(img_gray_tmp, (i, 0), (i, img_gray_h), (0,0,255),5)
+        #cv2.imshow("lines",img_gray_tmp)
+        #cv2.waitKey(0)
+        return img_gray_tmp
+
+    def drawLineFromTroughsToImg(self, img_colours, troughs):
+        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
+        img_gray_tmp = img_colours.copy()
+        index = 0
+        for trough_index_start,trough_index_end in troughs:
+            cv2.line(img_gray_tmp, (trough_index_start, 0), (trough_index_start, img_gray_h),   (255,255,255),3)
+            cv2.line(img_gray_tmp, (trough_index_end, 0), (trough_index_end, img_gray_h),       (255,255,255),3)
+            cv2.line(img_gray_tmp, (trough_index_start, int(img_gray_h/4)), (trough_index_end, int(img_gray_h/4)), (255, 0, 0), 3)
+            font = cv2.FONT_HERSHEY_SIMPLEX  # 定义字体
+            img_gray_tmp = cv2.putText(img_gray_tmp, str(index), (trough_index_start, int(img_gray_h/4)), font, 10, (0, 0, 255), 5)
+            index=index+1
+        #cv2.imshow("lines",img_gray_tmp)
+        #cv2.waitKey(0)
+        return img_gray_tmp
     def YProjectPostProcess(self, projectArrary,scale):
 
         projectArrary_valid = projectArrary[projectArrary > 0]
@@ -296,39 +324,51 @@ class CROP_WORD:
         #self.two_array_show_at_once(projectArrary_average_1,projectArrary_average_2)
 
         #self.hist_show(projectArrary_average_1)
-        a = np.array((200,100,250,110,220))
-        #peaks,troughs = self.getPeaksAndTroughs(projectArrary_average_1,moving_average_bin_w/2)
-        peaks, troughs = self.getPeaksAndTroughs(a, 1)
-        self.array_extreme_point_show(a, 1)
+        #a = np.array((200,100,250,110,220))
+        peaks,troughs = self.getPeaksAndTroughs(projectArrary_average_1,moving_average_bin_w/2)
+        #peaks, troughs = self.getPeaksAndTroughs(a, 1)
+        #self.array_extreme_point_show(a, 1)
         YProject_extreme_point_array = self.convertPeaksAndTroughsToArrary(projectArrary_average_1,peaks,projectArrary_threshold,troughs,projectArrary_threshold)
 
         #self.two_array_show_at_once(projectArrary_average_1,YProject_extreme_point_array)
         #print(YProject_extreme_point_array)
         #self.array_show(YProject_extreme_point_array)
         ##此处需要 对数组进行 波峰波谷的合并
-        return YProject_extreme_point_array
+        return self.peaksAndTroughsArraryPostProcess(YProject_extreme_point_array)
 
 
     def find_word_box(self,img_gray,img_colours):
         h, w = img_gray.shape
         y_project_array, y_project_img = self.YProject(img_gray)
-        YProject_extreme_point_array = self.YProjectPostProcess(y_project_array,0.3)
-        img_colours_draw = self.drawLineFromArraryToImg(img_colours,YProject_extreme_point_array)
-        download_img(img_colours_draw, self.output_path, "07-img_gray_draw_line")
-        #y_project_array = signal.medfilt(y_project_array, 9)
+        YProject_troughs_bins = self.YProjectPostProcess(y_project_array,0.3)
+        #img_colours_draw = self.drawLineFromArraryToImg(img_colours,YProject_extreme_point_array)
+        img_colours_draw = self.drawLineFromTroughsToImg(img_colours,YProject_troughs_bins)
+        download_img(img_colours_draw, self.output_path, "05-img_gray_draw_line")
 
-        #signal.find_peaks(y_project_array)
-        #y_project_array_fft = scipy.fft.fft(y_project_array)
-        #b, a = scipy.signal.butter(8, 0.8, 'lowpass')  # 配置滤波器 8 表示滤波器的阶数
-        #filtedData = scipy.signal.filtfilt(b, a, y_project_array)  # data为要过滤的信号
+        #根据后处理出来的bins,在原图上一列一列的显示出来
+        img_gray_h, img_gray_w = img_gray.shape
 
-        #self.signal_show(y_project_array_fft)
-        #self.signal_show(y_project_array)
-        #xxx = np.arange(1,1000)
-        #yyy = np.sin(xxx)
-        #yyy_fft = scipy.fft.fft(yyy)
-        #self.signal_show(yyy_fft)
 
+        index = 0
+        for trough_index_start,trough_index_end in YProject_troughs_bins:
+            if trough_index_start < 0 or trough_index_start > img_gray_w or  trough_index_end < 0 or trough_index_end > img_gray_w or trough_index_start >= trough_index_end:
+                logging.warning(["[Waring] YProject_troughs_bin[",trough_index_start,",",trough_index_end,"] continue !!"])
+                continue
+            index=index+1
+
+            #一列一列的图像,debug用
+            img_gray_copy = img_gray.copy()
+            #img_gray_troughs_bin = img_gray_copy[:,trough_index_start:trough_index_end]
+            #download_img(img_gray_troughs_bin, self.output_path, "05-img_gray_YProject_troughs_bin_" + str(index))
+
+            img_gray_mask = img_gray.copy()
+            img_gray_mask[:,:]= 0
+            img_gray_mask[:, trough_index_start:trough_index_end] = 1
+            #download_img(img_gray_mask, self.output_path, "06-img_gray_YProject_troughs_bin_" + str(index))
+
+            #在原图中只显示当前列
+            img_gray_troughs_bin = img_gray_copy *img_gray_mask
+            download_img(img_gray_troughs_bin, self.output_path, "05-img_gray_YProject_troughs_bin_" + str(index))
 
     def hist_show(self,array):
         hist1, bins = np.histogram(array)  # hist1 每个灰度值的频数
