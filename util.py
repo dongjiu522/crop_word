@@ -14,6 +14,8 @@ def cv_write(img_path,im):
 
 
 def download_img(img,out_path,str,downloadImg=True,do_log=False):
+    if True == os.path.exists(out_path):
+        remove_dirs(out_path)
     if downloadImg:
         img_path = out_path  + str
         cv_write(img_path, img)
