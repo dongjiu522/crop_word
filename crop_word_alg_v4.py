@@ -1,4 +1,5 @@
 import cv2
+import math
 import sys
 import os
 import numpy as np
@@ -7,17 +8,42 @@ import matplotlib.pyplot as plt
 from util import *
 
 class CROP_WORD_ALG:
-    def __init__(self):
-        return
+    is_handwriting_black = False
+    is_auto_threshold    = True
+    img_gray_threshold = 0
+    y_project_threshold= 0
+
+    def setOutputMiddlePath(self,path):
+        self.output_middle_path = path
+
+    def getYProjectThreshold(self):
+        return self.y_project_threshold
+
+    def getYProjectThreshold(self,t):
+        self.y_project_threshold = t
+
+    def setIsAutoThreshold(self,mode, threshold = 0):
+        self.is_auto_threshold = mode
+        if mode == False :
+            self.img_gray_threshold = threshold
+            logging.info("[Waring] change img_gray_threshold  = %s", self.img_gray_threshold)
+    def getImgGrayThreshold(self):
+        return self.img_gray_threshold
     def moving_average(self,x, w):
         tmp = np.convolve(x, np.ones(w), 'valid') / w
-        return np.concatenate((np.zeros(int(w / 2)), tmp))
+        return np.concatenate((np.zeros(math.ceil(w / 2)), tmp))
 
     def moving_medlian(self,x, w):
         return scipy.signal.medfilt(x, w)
 
-    def setOutputMiddlePath(self,path):
-        self.output_middle_path = path
+    def arrayThreshold(self,array,th):
+        tmp = array.copy()
+        tmp[tmp < (th)] = 0
+        return tmp
+
+
+    def setHandWritingIsBlack(self,flage):
+        self.is_handwriting_black = flage
 
     def compute_threshold(self, img_gray):
         img_max = np.max(img_gray)
@@ -42,28 +68,29 @@ class CROP_WORD_ALG:
                 max_g_th = th
         return max_g_th
 
-    def pre_process(self, img_colour, handwriting_is_black=False):
+    def pre_process(self, input, ):
 
         # 00.高斯滤波去噪
-        img_colour = cv2.GaussianBlur(img_colour, (5, 5), 0)
-        download_img(img_colour, self.output_middle_path, "01-GaussianBlur")
+        input = cv2.GaussianBlur(input, (5, 5), 0)
+        download_img(input, self.output_middle_path, "01-GaussianBlur")
 
-        img_gray = img_colour
-        if img_colour.ndim == 3:
-            img_gray = cv2.cvtColor(img_colour, cv2.COLOR_BGR2GRAY)
+        img_gray = input
+        if input.ndim == 3:
+            img_gray = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
         download_img(img_gray, self.output_middle_path, "02-gray")
         height, width = img_gray.shape  # 获取图片宽高
 
-        threshold = self.compute_threshold(img_gray)
-        #threshold = 101
+        if self.is_auto_threshold == True :
+            self.img_gray_threshold = self.compute_threshold(img_gray)
 
-        logging.info("[Message] compute_threshold = %s", threshold)
+
+        logging.info("[Message] compute_threshold = %s", self.img_gray_threshold)
 
         img_gray_th = img_gray.copy()
-        if handwriting_is_black == True:
-            cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY_INV, dst=img_gray_th)
+        if self.is_handwriting_black == True:
+            cv2.threshold(img_gray, self.img_gray_threshold, 255, cv2.THRESH_BINARY_INV, dst=img_gray_th)
         else:
-            cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY, dst=img_gray_th)
+            cv2.threshold(img_gray, self.img_gray_threshold, 255, cv2.THRESH_BINARY, dst=img_gray_th)
         download_img(img_gray_th, self.output_middle_path, "03-threshold")
 
         cv2.medianBlur(img_gray_th, 5, img_gray_th)
@@ -79,7 +106,56 @@ class CROP_WORD_ALG:
 
     # 垂直向投影
     def YProject(self,binary):
-        return np.sum(binary, axis=0) /255
+        h, w = binary.shape
+        y_projection_array = np.sum(binary, axis=0) /255
+        y_projection_array = self.moving_average(y_projection_array,5)
+        return  y_projection_array
+
+    def converYProjectToImg(self,y_projection_array):
+        y_projection_array_max = np.max(y_projection_array).astype(int)
+
+        #保护下,防止图像大小为0
+        y_projection_array_max = max(20,y_projection_array_max)
+        y_projection_img = np.zeros((int(y_projection_array_max), len(y_projection_array), 3), dtype=np.uint8)
+        y_projection_img[:] = 255
+        for i in range(len(y_projection_array)):
+            if y_projection_array[i] != 0:
+                cv2.line(y_projection_img, (i, int(y_projection_array_max - y_projection_array[i])),
+                         (i, int(y_projection_array_max)), (255, 0, 0))
+        return y_projection_img
+
+    def computeYProjectThreshold(self,scale = 0.5):
+
+        if np.max(self.y_projection_array) == 0:
+            return 0
+        projectArrary_valid = self.y_projection_array[self.y_projection_array > 0]
+        projectArrary_max = np.max(projectArrary_valid)
+        projectArrary_sum = np.sum(projectArrary_valid)
+        projectArrary_median = np.median(projectArrary_valid)
+        projectArrary_mean = 0
+        if len(projectArrary_valid) != 0:
+            projectArrary_mean = projectArrary_sum / len(projectArrary_valid)
+        projectArrary_threshold = min(projectArrary_median, projectArrary_mean)
+        self.y_project_threshold = projectArrary_threshold * scale
+        return self.y_project_threshold
+
     # 水平方向投影
     def XProject(self,binary):
         return np.sum(binary, axis=1) /255
+
+    def auto_work(self,input):
+        self.img_gray_pre_processed = self.pre_process(input)
+        self.y_projection_array =  self.YProject(self.img_gray_pre_processed)
+
+        self.y_projection_img = self.converYProjectToImg(self.y_projection_array)
+        download_img(self.y_projection_img, self.output_middle_path, "06-y_projection_img")
+
+        self.computeYProjectThreshold()
+        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array,self.y_project_threshold)
+        self.y_projection_array_th = self.moving_average(self.y_projection_array_th,5)
+        self.y_projection_array_th_img = self.converYProjectToImg(self.y_projection_array_th)
+        download_img(self.y_projection_array_th_img, self.output_middle_path, "07-y_projection_array_th_img")
+
+        return self.y_projection_img,self.y_projection_array_th_img
+
+
