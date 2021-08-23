@@ -12,6 +12,7 @@ class CROP_WORD_ALG:
     is_auto_threshold    = True
     img_gray_threshold = 0
     y_project_threshold= 0
+    y_project_threshold_scale = 0.5
 
     def setOutputMiddlePath(self,path):
         self.output_middle_path = path
@@ -104,13 +105,6 @@ class CROP_WORD_ALG:
 
         return img_gray_th
 
-    # 垂直向投影
-    def YProject(self,binary):
-        h, w = binary.shape
-        y_projection_array = np.sum(binary, axis=0) /255
-        y_projection_array = self.moving_average(y_projection_array,5)
-        return  y_projection_array
-
     def converYProjectToImg(self,y_projection_array):
         y_projection_array_max = np.max(y_projection_array).astype(int)
 
@@ -124,7 +118,7 @@ class CROP_WORD_ALG:
                          (i, int(y_projection_array_max)), (255, 0, 0))
         return y_projection_img
 
-    def computeYProjectThreshold(self,scale = 0.5):
+    def computeYProjectThreshold(self):
 
         if np.max(self.y_projection_array) == 0:
             return 0
@@ -136,8 +130,71 @@ class CROP_WORD_ALG:
         if len(projectArrary_valid) != 0:
             projectArrary_mean = projectArrary_sum / len(projectArrary_valid)
         projectArrary_threshold = min(projectArrary_median, projectArrary_mean)
-        self.y_project_threshold = projectArrary_threshold * scale
-        return self.y_project_threshold
+
+        return projectArrary_threshold * self.y_project_threshold_scale
+
+    # 垂直向投影
+    def YProject(self,binary):
+        y_projection_array = np.sum(binary, axis=0) /255
+        y_projection_array = self.moving_average(y_projection_array,5)
+        return  y_projection_array
+    def converToBinsFromSignPeakArray(self,array):
+        peaks_satrt = np.where(array == -1)
+        peaks_end   = np.where(array == -10)
+        peaks_w = peaks_end - peaks_satrt
+        peaks_w[peaks_w <= 0] = 0
+        return np.average(peaks_w)
+    def YProjectPostProcess(self,y_projection_array):
+        #print(np.where(y_projection_array == 0))
+        y_projection_array_sign_peaks =  np.zeros(y_projection_array.shap).astype(np.uint32)
+        y_projection_array_sign_peaks_max_val = np.zeros(y_projection_array.shap).astype(np.uint32)
+        y_projection_array_peaks_index = np.where(y_projection_array > 0)
+
+        peak_start_index = -1
+        peak_end_index   = -1
+        sign = False
+        for i in range(len(y_projection_array_peaks_index) -1):
+            if sign == False:
+                peak_start_index = y_projection_array_peaks_index[i]
+                sign = True
+
+            if sign == True and y_projection_array_peaks_index[i] != y_projection_array_peaks_index[i+1]:
+                sign = False
+                peak_end_index = y_projection_array_peaks_index[i]
+
+                if peak_start_index > 0 and peak_end_index - peak_start_index > 4:
+                    y_projection_array_sign_peaks[peak_start_index] = -1
+                    y_projection_array_sign_peaks[peak_end_index] = -10
+                    peak = y_projection_array(peak_start_index+1,peak_end_index-1)
+                    peak_max_val = np.max(peak)
+                    peak_max_index = np.where(peak == peak_max_val)
+                    peak_max_index = np.median(peak_max_index)
+                    y_projection_array_sign_peaks[peak_start_index+1 + peak_max_index] = peak_max_val
+
+
+        #对于距离很近的两个峰,进行合并
+
+        #处理左右两边的情况
+
+
+
+
+        #
+        self.computBinsAveWidthFromSignPeakArray()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # 水平方向投影
     def XProject(self,binary):
@@ -145,16 +202,20 @@ class CROP_WORD_ALG:
 
     def auto_work(self,input):
         self.img_gray_pre_processed = self.pre_process(input)
-        self.y_projection_array =  self.YProject(self.img_gray_pre_processed)
 
-        self.y_projection_img = self.converYProjectToImg(self.y_projection_array)
+
+        self.y_projection_array =  self.YProject(self.img_gray_pre_processed)
+        self.y_projection_array_ave = self.moving_average(self.y_projection_array, 5)
+        self.y_projection_img = self.converYProjectToImg(self.y_projection_array_ave)
         download_img(self.y_projection_img, self.output_middle_path, "06-y_projection_img")
 
-        self.computeYProjectThreshold()
-        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array,self.y_project_threshold)
-        self.y_projection_array_th = self.moving_average(self.y_projection_array_th,5)
+        self.y_project_threshold = self.computeYProjectThreshold()
+        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array_ave,self.y_project_threshold)
+        #self.y_projection_array_th = self.moving_average(self.y_projection_array_th,5)
         self.y_projection_array_th_img = self.converYProjectToImg(self.y_projection_array_th)
         download_img(self.y_projection_array_th_img, self.output_middle_path, "07-y_projection_array_th_img")
+
+        self.YProjectPostProcess(self.y_projection_array_th)
 
         return self.y_projection_img,self.y_projection_array_th_img
 
