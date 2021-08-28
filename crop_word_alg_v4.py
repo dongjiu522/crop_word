@@ -20,7 +20,7 @@ class CROP_WORD_ALG:
     def getYProjectThreshold(self):
         return self.y_project_threshold
 
-    def getYProjectThreshold(self,t):
+    def setYProjectThreshold(self,t):
         self.y_project_threshold = t
 
     def setIsAutoThreshold(self,mode, threshold = 0):
@@ -30,6 +30,7 @@ class CROP_WORD_ALG:
             logging.info("[Waring] change img_gray_threshold  = %s", self.img_gray_threshold)
     def getImgGrayThreshold(self):
         return self.img_gray_threshold
+
     def moving_average(self,x, w):
         tmp = np.convolve(x, np.ones(w), 'valid') / w
         return np.concatenate((np.zeros(math.ceil(w / 2)), tmp))
@@ -69,7 +70,7 @@ class CROP_WORD_ALG:
                 max_g_th = th
         return max_g_th
 
-    def pre_process(self, input, ):
+    def pre_process(self,input ):
 
         # 00.高斯滤波去噪
         input = cv2.GaussianBlur(input, (5, 5), 0)
