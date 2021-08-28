@@ -165,7 +165,7 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit101 = QLineEdit(self)
         # self.label0.set
         self.lineEdit101.setFixedSize(80, 20)
-        self.lineEdit101.move(20, 565)
+        self.lineEdit101.move(20, 555)
         self.lineEdit101.setToolTip('垂直投影:建议阈值 = min(median,mean), 垂直投影阈值 = 垂直投影建议阈值 * 垂直投影阈值系数 ')
         self.lineEdit101.setAlignment(Qt.AlignLeft)
         self.lineEdit101.setReadOnly(True)
@@ -174,7 +174,7 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit102 = QLineEdit(self)
         # self.label0.set
         self.lineEdit102.setFixedSize(80, 20)
-        self.lineEdit102.move(20, 595)
+        self.lineEdit102.move(20, 580)
         self.lineEdit102.setToolTip('垂直投影:建议阈值系数  = [0,正无穷), 垂直投影阈值 = 垂直投影建议阈值 * 垂直投影阈值系数 ')
         self.lineEdit102.setAlignment(Qt.AlignLeft)
         self.lineEdit102.setValidator(QDoubleValidator())
@@ -185,7 +185,7 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit90 = QLineEdit(self)
         # self.label0.set
         self.lineEdit90.setFixedSize(80, 20)
-        self.lineEdit90.move(20, 625)
+        self.lineEdit90.move(20, 605)
         self.lineEdit90.setToolTip('垂直投影:建议bins宽度阈值  = [0,正无穷),bin的宽度小于此阈值,则会被左右的波峰融合')
         self.lineEdit90.setAlignment(Qt.AlignLeft)
         self.lineEdit90.setValidator(QIntValidator())
@@ -197,11 +197,22 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit95 = QLineEdit(self)
         # self.label0.set
         self.lineEdit95.setFixedSize(80, 20)
-        self.lineEdit95.move(20, 655)
+        self.lineEdit95.move(20, 630)
         self.lineEdit95.setToolTip('垂直投影:建议bins距离阈值  = [0,正无穷), 两个峰的距离小于此阈值,则会被左右的波峰融合')
         self.lineEdit95.setAlignment(Qt.AlignLeft)
         self.lineEdit95.setValidator(QIntValidator())
         self.lineEdit95.setReadOnly(True)
+
+        #####################################################################
+        # 标签:垂直投影:建议两端的bins扩充宽度
+        self.lineEdit98 = QLineEdit(self)
+        # self.label0.set
+        self.lineEdit98.setFixedSize(80, 20)
+        self.lineEdit98.move(20, 655)
+        self.lineEdit98.setToolTip('垂直投影:建议两端的bins扩充宽度  = [0,正无穷), 最左边和最右边两个峰需要左右扩展的宽度')
+        self.lineEdit98.setAlignment(Qt.AlignLeft)
+        self.lineEdit98.setValidator(QIntValidator())
+        self.lineEdit98.setReadOnly(True)
 
         #####################################################################
         # 按钮:垂直投影阈值化选择固定阈值还是自动阈值
@@ -220,13 +231,13 @@ class CROP_WORD_APP(QWidget):
         self.boutton97.setToolTip('垂直投影阈值化选择固定阈值还是自动阈值')
 
 
+
         #####################################################################
         # 按钮:自动分割
         self.boutton100 = QPushButton('自动分割', self)
         self.boutton100.setToolTip('全自动分割书法字帖的字.\n只适用于背景单一场景简单的字帖')
         self.boutton100.resize(self.boutton100.sizeHint())
         self.boutton100.move(20, 750)
-        self.boutton100.clicked.connect(self.autoCropWord)
         self.boutton100.clicked.connect(self.autoCropWord)
 
         #####################################################################
@@ -269,6 +280,16 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit120.setAlignment(Qt.AlignLeft)
         self.lineEdit120.setValidator(QIntValidator())
 
+
+        #####################################################################
+        # 标签:垂直投影:两端的bins扩充宽度
+        self.lineEdit99 = QLineEdit(self)
+        # self.label0.set
+        self.lineEdit99.setFixedSize(80, 20)
+        self.lineEdit99.move(20, 890)
+        self.lineEdit99.setToolTip('垂直投影:两端的bins扩充宽度  = [0,正无穷), 最左边和最右边两个峰需要左右扩展的宽度')
+        self.lineEdit99.setAlignment(Qt.AlignLeft)
+        self.lineEdit99.setValidator(QIntValidator())
 
 
 
@@ -413,7 +434,19 @@ class CROP_WORD_APP(QWidget):
         else:
             self.cropWordAlg.setIsAutoThreshold(False,int(self.lineEdit1.text()))
 
+
+        isAutoThresholdYProjection = self.boutton96.isChecked()
+        if isAutoThresholdYProjection !=True:
+            self.cropWordAlg.setYProjectThreshold(False,int(self.lineEdit103.text()))
+            self.cropWordAlg.setYProjectThresholdScale(float(self.lineEdit104.text()))
+            self.cropWordAlg.setYprojectionBinWidthThreshold(int(self.lineEdit110.text()))
+            self.cropWordAlg.setYprojectionBinDisThreshold(int(self.lineEdit120.text()))
+            self.cropWordAlg.setYBinsExpanWidth(int(self.lineEdit99.text()))
+        else:
+            self.cropWordAlg.setYProjectThreshold(True, 0)
         self.cropWordAlg.auto_work(self.img_opencv)
+
+
         self.lineEdit0.setText(str(self.cropWordAlg.getImgGrayThreshold()))
         self.show_img_opencv_YProject(self.cropWordAlg.getYprojectionImg())
         self.show_img_opencv_YProjectTh(self.cropWordAlg.getYprojectionImgTh())
@@ -426,7 +459,13 @@ class CROP_WORD_APP(QWidget):
         self.lineEdit102.setText(str(self.cropWordAlg.getYProjectThresholdScale()))
         self.lineEdit90.setText(str(self.cropWordAlg.getYprojectionBinWidthThreshold()))
         self.lineEdit95.setText(str(self.cropWordAlg.getYprojectionBinDisThreshold()))
+        self.lineEdit98.setText(str(self.cropWordAlg.getYBinsExpanWidth()))
 
+        self.lineEdit103.setText(str(self.cropWordAlg.getYProjectThreshold()))
+        self.lineEdit104.setText(str(self.cropWordAlg.getYProjectThresholdScale()))
+        self.lineEdit110.setText(str(self.cropWordAlg.getYprojectionBinWidthThreshold()))
+        self.lineEdit120.setText(str(self.cropWordAlg.getYprojectionBinDisThreshold()))
+        self.lineEdit99.setText(str(self.cropWordAlg.getYBinsExpanWidth()))
 
 
 

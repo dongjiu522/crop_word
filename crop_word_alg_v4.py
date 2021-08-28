@@ -18,13 +18,14 @@ class CROP_WORD_ALG:
 
     y_projection_img = []
     y_project_threshold= 0
+    is_auto_y_project_threshold = True
     y_project_threshold_scale = 0.5
     y_projection_array_th_img = []
 
     y_bins = []
     y_bin_width_threshold = 20
     y_bins_dis_threshold = 5
-
+    y_bins_expan_width = 5
     def setOutputMiddlePath(self,path):
         self.output_middle_path = path
 
@@ -46,14 +47,24 @@ class CROP_WORD_ALG:
     def getYProjectThreshold(self):
         return self.y_project_threshold
 
-    def setYProjectThreshold(self,t):
-        self.y_project_threshold = t
+    def setYProjectThreshold(self,is_auto_y_project_threshold,threshold):
+        self.is_auto_y_project_threshold = is_auto_y_project_threshold
+        if is_auto_y_project_threshold == False :
+            self.y_project_threshold = threshold
+            logging.info("[Waring] change y_project_threshold  = %s", self.y_project_threshold)
+
 
     def getYProjectThresholdScale(self):
         return self.y_project_threshold_scale
 
     def setYProjectThresholdScale(self, scale):
         self.y_project_threshold_scale = scale
+
+    def getYBinsExpanWidth(self):
+        return self.y_bins_expan_width
+
+    def setYBinsExpanWidth(self, y_bins_expan_width):
+        self.y_bins_expan_width = y_bins_expan_width
 
     def getYprojectionImgTh(self):
         return self.y_projection_array_th_img
@@ -205,78 +216,143 @@ class CROP_WORD_ALG:
 
         return y_bins
 
+    def cleanBinsFlagFalse(self,bins):
+        result = []
+        for bin in bins:
+            bin_start, bin_end, flag = bin
+            if flag < 0:
+                continue
+            result.append(bin)
+        return result
+
+    def binsAve(self, bins):
+        sum = 0
+        index = 0
+        for bin_start, bin_end,flag in bins:
+            if flag < 0 :
+                continue
+            sum = sum + (bin_end - bin_start)
+            index = index + 1
+        if sum == 0:
+            return 0
+        else:
+            return sum / index
+
     def binsPostProcess(self,project_array,bins,bin_width_threshold,bins_dis_threshold):
-
-        #先处理两个离得近的峰
-
-        #再处理小峰
+        project_array_width, = project_array.shape
+        #先处理两个距离很近的峰
         for i in range(len(bins)):
             bin_start, bin_end,flag = bins[i]
-            if flag != 1:
+            if flag < 0:
                 continue
-            if (bin_end - bin_start) <= bin_width_threshold:
-                if i == 0 and i != len(bins) -1:  #前边没有峰,后边有峰
-                    bin_next_start, bin_next_end,flag = bins[i+1]
-                    bins[i+1] = (bin_start,bin_next_end,1)
-                if i != 0 and i == len(bins) - 1:  # 前边有峰,后边没有峰
-                    bin_befre_start, bin_befre_en,flag = bins[i-1]
-                    bins[i-1] = (bin_befre_start,bin_end,1)
-                if i != 0 and i != len(bins) - 1:  # 前后都有峰
-                    bin_befre_start, bin_befre_end,flag = bins[i-1]
-                    bin_next_start, bin_next_end,flag = bins[i + 1]
-                    bin_meddle = int(bin_start + (bin_end - bin_start) / 2)
-                    #寻找这个小峰的数值最大的线为峰线,通过这个峰线来判断距离左右两边那边最近,然后融合
-                    project_array_bin_crop = project_array[bin_start:bin_end]
-                    project_array_bin_crop_max = np.max(project_array_bin_crop)
-                    project_array_bin_crop_max_indexs = np.where(project_array_bin_crop_max)
-                    #bin_meddle = bin_start + np.mean(project_array_bin_crop_max_indexs)
 
-                    dis_befre = bin_meddle - bin_befre_end
-                    dis_next = bin_next_start - bin_meddle
-                    if dis_befre > dis_next :
-                        bins[i + 1] = (bin_start, bin_next_end,1)
-                    elif dis_befre < dis_next:
-                        bins[i - 1] = (bin_befre_start, bin_end,1)
-                    elif dis_befre ==  dis_next:
-                        bins[i - 1] = (bin_befre_start, bin_meddle,1)
-                        bins[i + 1] = (bin_meddle, bin_next_end,1)
-                bins[i] = (0,0,0)
-
-
-        #处理被清空的峰值
-        bins_result = []
-        for bin_start, bin_end,flag  in bins:
-            if flag != 1:
-                continue
-            #if bin_start != 0 and bin_end != 0:
-            bins_result.append((bin_start, bin_end,1))
-
-        #处理距离过大的峰
-        for i in range(len(bins_result)):
-            bin_start, bin_end,flag = bins_result[i]
-            if flag != 1:
-                continue
             if i != 0 :  #只需要前边有峰
 
-                bin_befre_start, bin_befre_end,flag = bins_result[i - 1]
+                bin_befre_start, bin_befre_end,flag = bins[i - 1]
 
                 # 当前的峰跟之前的峰,要是距离过大,则不需要处理.峰之间的缝隙,比字还大.就是隔开了
                 if bin_start - bin_befre_end > bins_dis_threshold :
                     continue
-                #此处寻找这个峰被两变的峰融合掉了,找中间分割点最小之值作为分割线
-                through_meddle = int((bin_befre_end + bin_start) / 2)
-                project_array_bin_crop = project_array[bin_befre_end:bin_start]
-                project_array_bin_crop_max = np.min(project_array_bin_crop)
-                project_array_bin_crop_max_indexs = np.where(project_array_bin_crop_max)
-                #through_meddle =  bin_start + np.mean(project_array_bin_crop_max_indexs)
+                bins[i - 1] = (0,0,-1)
+                bins[i] = (bin_befre_start, bin_end,1)
 
-                bins_result[i - 1] = (bin_befre_start, through_meddle)
-                bins_result[i] = (through_meddle, bin_end)
+        bins = self.cleanBinsFlagFalse(bins)
 
 
-        #此处需要扩展两边缘的bin的宽度,让其能够将两边的字的边缘能够包含进去
+        #再处理宽度小的峰
+        for i in range(len(bins)):
+            bin_start, bin_end,flag = bins[i]
+            if flag < 0 :
+                continue
+            if (bin_end - bin_start) <= bin_width_threshold:
+                befre_i_index = -1
+                for befre_i in range(i - 1 ,-1,-1):
+                    befre_i_start, befre_i_end, befre_i_flag = bins[befre_i]
+                    if befre_i_flag == 1:
+                        befre_i_index = befre_i
+                        break
 
-        return bins_result
+                if befre_i_index == -1 and i != len(bins) -1:  #前边没有峰,后边有峰
+                    bin_next_start, bin_next_end,flag = bins[i+1]
+                    bins[i+1] = (bin_start,bin_next_end,1)
+                if befre_i_index != -1 and i == len(bins) - 1:  # 前边有峰,后边没有峰
+                    bin_befre_start, bin_befre_en,flag = bins[befre_i_index]
+                    bins[befre_i_index] = (bin_befre_start,bin_end,1)
+                if befre_i_index != -1 and i != len(bins) - 1:  # 前后都有峰
+
+                    #寻找这个小峰的数值最大的线为峰线,通过这个峰线来判断距离左右两边那边最近,然后融合
+                    project_array_bin_crop = project_array[bin_start:bin_end]
+                    project_array_bin_crop_max = np.max(project_array_bin_crop)
+                    project_array_bin_crop_max_indexs = np.where(project_array_bin_crop_max)
+                    bin_meddle = int(bin_start + np.mean(project_array_bin_crop_max_indexs))
+
+                    project_array_bin_crop_meddle_left = project_array[bin_start:bin_meddle]
+                    project_array_bin_crop_meddle_right = project_array[bin_meddle:bin_end]
+                    project_array_bin_crop_meddle_left_sum = np.sum(project_array_bin_crop_meddle_left)
+                    project_array_bin_crop_meddle_right_sum = np.sum(project_array_bin_crop_meddle_right)
+
+                    bin_befre_start, bin_befre_en, flag = bins[befre_i_index]
+                    bin_next_start, bin_next_end, flag = bins[i + 1]
+                    dis_befre = bin_meddle - bin_befre_end
+                    dis_next = bin_next_start - bin_meddle
+                    if project_array_bin_crop_meddle_left_sum > project_array_bin_crop_meddle_right_sum :
+                        bins[befre_i_index] = (bin_befre_start, bin_end, 1)
+                    elif project_array_bin_crop_meddle_left_sum <project_array_bin_crop_meddle_right_sum :
+                        bins[i + 1] = (bin_start, bin_next_end,1)
+                    else:
+                        if dis_befre < dis_next :
+                            bins[befre_i_index] = (bin_befre_start, bin_end, 1)
+                        elif dis_befre > dis_next :
+                            bins[i + 1] = (bin_start, bin_next_end, 1)
+                        else:
+                            bins[i + 1] = (bin_start, bin_next_end, 1)
+
+                bins[i] = (0,0,-1)
+
+        bins = self.cleanBinsFlagFalse(bins)
+
+        bins_ave = self.binsAve(bins)
+
+
+
+        #将bins扩充
+        for i in range(len(bins) -1):
+            bin_start, bin_end,flag = bins[i]
+            if flag < 0 :
+                continue
+            if i !=  len(bins):
+                bin_next_start, bin_next_end,bin_next_flag = bins[i+1]
+                #if bin_next_start - bin_end > bins_ave:
+                #    bins[i] = (bin_start, bin_end,2)
+                #    continue
+
+                #project_array_bin_crop = project_array[bin_end:bin_next_start]
+                #project_array_bin_crop_min = np.min(project_array_bin_crop)
+                #project_array_bin_crop_min_indexs = np.where(project_array_bin_crop_min)
+                #through_meddle = int(bin_end + np.mean(project_array_bin_crop_max_indexs))
+
+                #此处可优化,在两个波峰之间的波谷,找个好的位置将两个波分开.暂时找到是中间线
+                through_meddle = int((bin_end + bin_next_start ) /2)
+
+                bins[i] = (bin_start, through_meddle,flag)
+                bins[i+1] = (through_meddle, bin_next_end,bin_next_flag)
+
+
+        bins = self.cleanBinsFlagFalse(bins)
+
+        # 此处需要扩展两边缘的bin的宽度,让其能够将两边的字的边缘能够包含进去
+        if len(bins)  == 1:
+            bin_start, bin_end,flag = bins[0]
+            bins[0] = (max(0,bin_start - self.y_bins_expan_width),bin_end,flag)
+        elif len(bins)  >=2 :
+            bin_start, bin_end,flag = bins[0]
+            bins[0] = (max(0,bin_start - self.y_bins_expan_width),bin_end,flag)
+            bin_start, bin_end,flag = bins[-1]
+            bins[-1] = (bin_start,min(bin_end + self.y_bins_expan_width,int(project_array_width)-1),flag)
+
+
+
+        return bins
 
     def drawLineFromYProjectBinsToImg(self, img_colours, bins):
         img_gray_h, img_gray_w,img_gray_c = img_colours.shape
@@ -285,7 +361,7 @@ class CROP_WORD_ALG:
         for trough_index_start,trough_index_end,flag in bins:
             if flag != 1:
                 continue
-            cv2.line(img_tmp, (trough_index_start, 0), (trough_index_start, img_gray_h),   (255,0,0),2)
+            cv2.line(img_tmp, (trough_index_start, 0), (trough_index_start, img_gray_h),   (0,255,0),2)
             cv2.line(img_tmp, (trough_index_end, 0), (trough_index_end, img_gray_h),       (0,0,255),2)
             cv2.line(img_tmp, (trough_index_start, int(img_gray_h/4)), (trough_index_end, int(img_gray_h/4)), (0, 0, 0), 2)
             font = cv2.FONT_HERSHEY_SIMPLEX  # 定义字体
@@ -297,7 +373,7 @@ class CROP_WORD_ALG:
         img_gray_h, img_gray_w,img_gray_c = img_colours.shape
         img_tmp = img_colours.copy()
         threshold = int(min(threshold,img_gray_h))
-        cv2.line(img_tmp, (0, img_gray_h - threshold), (img_gray_w, img_gray_h - threshold), (0, 0, 0), 3)
+        cv2.line(img_tmp, (0, img_gray_h - threshold), (img_gray_w, img_gray_h - threshold), (0, 0, 255), 3)
         return img_tmp
 
 
@@ -326,11 +402,11 @@ class CROP_WORD_ALG:
         download_img(self.y_projection_img, self.output_middle_path, "06-y_projection_img")
 
         #计算下垂直投影的建议阈值,并乘以缩放系数
-        self.y_project_threshold = self.computeYProjectThreshold(self.y_projection_array)
-        self.y_project_threshold= int(self.y_project_threshold * self.y_project_threshold_scale)
+        if self.is_auto_y_project_threshold == True:
+            self.y_project_threshold = self.computeYProjectThreshold(self.y_projection_array)
 
         #根据上一步的阈值将垂直投影阈值化
-        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array,self.y_project_threshold)
+        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array,self.y_project_threshold * self.y_project_threshold_scale)
 
         #将阈值化后的垂直投影转换成img
         self.y_projection_array_th_img = self.converYProjectToImg(self.y_projection_array_th)
