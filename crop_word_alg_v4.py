@@ -8,14 +8,40 @@ import matplotlib.pyplot as plt
 from util import *
 
 class CROP_WORD_ALG:
+    output_middle_path = "./output_middle"
+
     is_handwriting_black = False
     is_auto_threshold    = True
+
     img_gray_threshold = 0
+
+
+    y_projection_img = []
     y_project_threshold= 0
     y_project_threshold_scale = 0.5
+    y_projection_array_th_img = []
+
+    y_bins = []
+    y_bin_width_threshold = 20
+    y_bins_dis_threshold = 5
 
     def setOutputMiddlePath(self,path):
         self.output_middle_path = path
+
+    def setHandWritingIsBlack(self,flage):
+        self.is_handwriting_black = flage
+
+    def getImgGrayThreshold(self):
+        return self.img_gray_threshold
+
+    def setIsAutoThreshold(self,is_auto_threshold, threshold = 0):
+        self.is_auto_threshold = is_auto_threshold
+        if is_auto_threshold == False :
+            self.img_gray_threshold = threshold
+            logging.info("[Waring] change img_gray_threshold  = %s", self.img_gray_threshold)
+
+    def getYprojectionImg(self):
+        return self.y_projection_img
 
     def getYProjectThreshold(self):
         return self.y_project_threshold
@@ -23,14 +49,28 @@ class CROP_WORD_ALG:
     def setYProjectThreshold(self,t):
         self.y_project_threshold = t
 
-    def setIsAutoThreshold(self,mode, threshold = 0):
-        self.is_auto_threshold = mode
-        if mode == False :
-            self.img_gray_threshold = threshold
-            logging.info("[Waring] change img_gray_threshold  = %s", self.img_gray_threshold)
-    def getImgGrayThreshold(self):
-        return self.img_gray_threshold
+    def getYprojectionImgTh(self):
+        return self.y_projection_array_th_img
 
+    def getYprojectionBins(self):
+        return self.y_bins
+
+    def getYprojectionBinWidthThreshold(self):
+        return self.y_bin_width_threshold
+    def setYprojectionBinWidthThreshold(self,t):
+        self.y_bin_width_threshold = t
+    def setYprojectionBinDisThreshold(self):
+        return self.y_bins_dis_threshold
+    def setYprojectionBinDisThreshold(self,t):
+        self.y_bins_dis_threshold = t
+
+
+
+
+
+
+
+    #通用函数
     def moving_average(self,x, w):
         tmp = np.convolve(x, np.ones(w), 'valid') / w
         return np.concatenate((np.zeros(math.ceil(w / 2)), tmp))
@@ -44,8 +84,6 @@ class CROP_WORD_ALG:
         return tmp
 
 
-    def setHandWritingIsBlack(self,flage):
-        self.is_handwriting_black = flage
 
     def compute_threshold(self, img_gray):
         img_max = np.max(img_gray)
@@ -70,7 +108,7 @@ class CROP_WORD_ALG:
                 max_g_th = th
         return max_g_th
 
-    def pre_process(self,input ):
+    def pre_process(self,input ,is_auto_threshold,is_handwriting_black):
 
         # 00.高斯滤波去噪
         input = cv2.GaussianBlur(input, (5, 5), 0)
@@ -82,14 +120,14 @@ class CROP_WORD_ALG:
         download_img(img_gray, self.output_middle_path, "02-gray")
         height, width = img_gray.shape  # 获取图片宽高
 
-        if self.is_auto_threshold == True :
+        if is_auto_threshold == True :
             self.img_gray_threshold = self.compute_threshold(img_gray)
 
 
         logging.info("[Message] compute_threshold = %s", self.img_gray_threshold)
 
         img_gray_th = img_gray.copy()
-        if self.is_handwriting_black == True:
+        if is_handwriting_black == True:
             cv2.threshold(img_gray, self.img_gray_threshold, 255, cv2.THRESH_BINARY_INV, dst=img_gray_th)
         else:
             cv2.threshold(img_gray, self.img_gray_threshold, 255, cv2.THRESH_BINARY, dst=img_gray_th)
@@ -119,11 +157,11 @@ class CROP_WORD_ALG:
                          (i, int(y_projection_array_max)), (255, 0, 0))
         return y_projection_img
 
-    def computeYProjectThreshold(self):
+    def computeYProjectThreshold(self,y_projection_array):
 
-        if np.max(self.y_projection_array) == 0:
+        if np.max(y_projection_array) == 0:
             return 0
-        projectArrary_valid = self.y_projection_array[self.y_projection_array > 0]
+        projectArrary_valid = y_projection_array[y_projection_array > 0]
         projectArrary_max = np.max(projectArrary_valid)
         projectArrary_sum = np.sum(projectArrary_valid)
         projectArrary_median = np.median(projectArrary_valid)
@@ -132,92 +170,161 @@ class CROP_WORD_ALG:
             projectArrary_mean = projectArrary_sum / len(projectArrary_valid)
         projectArrary_threshold = min(projectArrary_median, projectArrary_mean)
 
-        return projectArrary_threshold * self.y_project_threshold_scale
+        return projectArrary_threshold
 
     # 垂直向投影
     def YProject(self,binary):
         y_projection_array = np.sum(binary, axis=0) /255
         y_projection_array = self.moving_average(y_projection_array,5)
-        return  y_projection_array
+        return  np.array(y_projection_array)
+
+    # 水平方向投影
+    def XProject(self,binary):
+        x_projection_array = np.sum(binary, axis=1) /255
+        x_projection_array = self.moving_average(x_projection_array,5)
+        return x_projection_array
+
     def converToBinsFromSignPeakArray(self,array):
         peaks_satrt = np.where(array == -1)
         peaks_end   = np.where(array == -10)
         peaks_w = peaks_end - peaks_satrt
         peaks_w[peaks_w <= 0] = 0
         return np.average(peaks_w)
-    def YProjectPostProcess(self,y_projection_array):
-        #print(np.where(y_projection_array == 0))
-        y_projection_array_sign_peaks =  np.zeros(y_projection_array.shap).astype(np.uint32)
-        y_projection_array_sign_peaks_max_val = np.zeros(y_projection_array.shap).astype(np.uint32)
-        y_projection_array_peaks_index = np.where(y_projection_array > 0)
-
-        peak_start_index = -1
-        peak_end_index   = -1
-        sign = False
-        for i in range(len(y_projection_array_peaks_index) -1):
-            if sign == False:
-                peak_start_index = y_projection_array_peaks_index[i]
-                sign = True
-
-            if sign == True and y_projection_array_peaks_index[i] != y_projection_array_peaks_index[i+1]:
-                sign = False
-                peak_end_index = y_projection_array_peaks_index[i]
-
-                if peak_start_index > 0 and peak_end_index - peak_start_index > 4:
-                    y_projection_array_sign_peaks[peak_start_index] = -1
-                    y_projection_array_sign_peaks[peak_end_index] = -10
-                    peak = y_projection_array(peak_start_index+1,peak_end_index-1)
-                    peak_max_val = np.max(peak)
-                    peak_max_index = np.where(peak == peak_max_val)
-                    peak_max_index = np.median(peak_max_index)
-                    y_projection_array_sign_peaks[peak_start_index+1 + peak_max_index] = peak_max_val
 
 
-        #对于距离很近的两个峰,进行合并
+    def YProjectPostProcessToBins(self, project_array):
+        project_array = np.array(project_array)
+        array_sign = np.zeros(project_array.shape)
+        #project_array[project_array < (h_project_array_threshold)] = 0
 
-        #处理左右两边的情况
+        y_bins = []
+        bins_ave = 0
+        bin_start = 0
+        bin_end = 0
+        bin_flage = 0
+        for i in range(len(project_array)):
+            if project_array[i] != 0 and bin_flage == 0:
+                bin_start = i
+                bin_flage = 1
+            if (project_array[i] == 0 or i >= len(project_array) - 1) and bin_flage == 1:
+                bin_end = i
+                bin_flage = 0
+                if (bin_end > bin_start):
+                    y_bins.append((bin_start, bin_end,1))
+
+        return y_bins
+
+    def binsPostProcess(self,project_array,bins,bin_width_threshold,bins_dis_threshold):
+
+        #先处理两个离得近的峰
+
+        #再处理小峰
+        for i in range(len(bins)):
+            bin_start, bin_end,flag = bins[i]
+            if flag != 1:
+                continue
+            if (bin_end - bin_start) <= bin_width_threshold:
+                if i == 0 and i != len(bins) -1:  #前边没有峰,后边有峰
+                    bin_next_start, bin_next_end = bins[i+1]
+                    bins[i+1] = (bin_start,bin_next_end)
+                if i != 0 and i == len(bins) - 1:  # 前边有峰,后边没有峰
+                    bin_befre_start, bin_befre_end = bins[i-1]
+                    bins[i-1] = (bin_befre_start,bin_end)
+                if i != 0 and i != len(bins) - 1:  # 前后都有峰
+                    bin_befre_start, bin_befre_end = bins[i-1]
+                    bin_next_start, bin_next_end = bins[i + 1]
+                    #bin_meddle = int(bin_start + (bin_end - bin_start) / 2)
+                    #寻找这个小峰的数值最大的线为峰线,通过这个峰线来判断距离左右两边那边最近,然后融合
+                    project_array_bin_crop = project_array[bin_start:bin_end]
+                    project_array_bin_crop_max = np.max(project_array_bin_crop)
+                    project_array_bin_crop_max_indexs = np.where(project_array_bin_crop_max)
+                    bin_meddle = bin_start + np.mean(project_array_bin_crop_max_indexs)
+
+                    dis_befre = bin_meddle - bin_befre_end
+                    dis_next = bin_next_start - bin_meddle
+                    if dis_befre > dis_next :
+                        bins[i + 1] = (bin_start, bin_next_end)
+                    elif dis_befre < dis_next:
+                        bins[i - 1] = (bin_befre_start, bin_end)
+                    elif dis_befre ==  dis_next:
+                        bins[i - 1] = (bin_befre_start, bin_meddle)
+                        bins[i + 1] = (bin_meddle, bin_next_end)
+                bins[i] = (0,0,0)
+
+
+        #处理被清空的峰值
+        bins_result = []
+        for bin_start, bin_end,flag  in bins:
+            if flag != 1:
+                continue
+            #if bin_start != 0 and bin_end != 0:
+            bins_result.append((bin_start, bin_end,1))
+
+        #处理距离过大的峰
+        for i in range(len(bins_result)):
+            bin_start, bin_end,flag = bins_result[i]
+            if flag != 1:
+                continue
+            if i != 0 :  #只需要前边有峰
+
+                bin_befre_start, bin_befre_end,flag = bins_result[i - 1]
+
+                # 当前的峰跟之前的峰,要是距离过大,则不需要处理.峰之间的缝隙,比字还大.就是隔开了
+                if bin_start - bin_befre_end > bins_dis_threshold :
+                    continue
+                #此处寻找这个峰被两变的峰融合掉了,找中间分割点最小之值作为分割线
+                project_array_bin_crop = project_array[bin_befre_end:bin_start]
+                project_array_bin_crop_max = np.min(project_array_bin_crop)
+                project_array_bin_crop_max_indexs = np.where(project_array_bin_crop_max)
+                through_meddle =  bin_start + np.mean(project_array_bin_crop_max_indexs)
+
+                bins_result[i - 1] = (bin_befre_start, through_meddle)
+                bins_result[i] = (through_meddle, bin_end)
+
+
+        #此处需要扩展两边缘的bin的宽度,让其能够将两边的字的边缘能够包含进去
+
+        return bins_result
 
 
 
 
-        #
-        self.computBinsAveWidthFromSignPeakArray()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # 水平方向投影
-    def XProject(self,binary):
-        return np.sum(binary, axis=1) /255
 
     def auto_work(self,input):
-        self.img_gray_pre_processed = self.pre_process(input)
+        #预处理
+        self.img_gray_pre_processed = self.pre_process(input,self.is_auto_threshold,self.is_handwriting_black)
 
-
+        #垂直投影
         self.y_projection_array =  self.YProject(self.img_gray_pre_processed)
-        self.y_projection_array_ave = self.moving_average(self.y_projection_array, 5)
-        self.y_projection_img = self.converYProjectToImg(self.y_projection_array_ave)
+
+        #垂直投影转img
+        self.y_projection_img = self.converYProjectToImg(self.y_projection_array)
         download_img(self.y_projection_img, self.output_middle_path, "06-y_projection_img")
 
-        self.y_project_threshold = self.computeYProjectThreshold()
-        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array_ave,self.y_project_threshold)
-        #self.y_projection_array_th = self.moving_average(self.y_projection_array_th,5)
+        #计算下垂直投影的建议阈值,并乘以缩放系数
+        self.y_project_threshold = self.computeYProjectThreshold(self.y_projection_array)
+        self.y_project_threshold*= self.y_project_threshold_scale
+
+        #根据上一步的阈值将垂直投影阈值化
+        self.y_projection_array_th = self.arrayThreshold(self.y_projection_array,self.y_project_threshold)
+
+        #将阈值化后的垂直投影转换成img
         self.y_projection_array_th_img = self.converYProjectToImg(self.y_projection_array_th)
         download_img(self.y_projection_array_th_img, self.output_middle_path, "07-y_projection_array_th_img")
 
-        self.YProjectPostProcess(self.y_projection_array_th)
+        #将垂直投影转成bins
+        self.y_bins = self.YProjectPostProcessToBins(self.y_projection_array_th)
 
-        return self.y_projection_img,self.y_projection_array_th_img
+        #计算bins后处理的宽度阈值和距离阈值
+        #应该不用计算
+
+        #垂直投影bins后处理
+        self.y_bins = self.binsPostProcess(self.y_projection_array_th,self.y_bins,self.y_bin_width_threshold,self.y_bins_dis_threshold)
+
+
+
+
+
+        return
 
 

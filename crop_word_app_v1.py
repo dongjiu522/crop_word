@@ -302,10 +302,11 @@ class CROP_WORD_APP(QWidget):
             self.cropWordAlg.setIsAutoThreshold(True)
         else:
             self.cropWordAlg.setIsAutoThreshold(False,int(self.lineEdit1.text()))
-        self.img_opencv_y_projection,self.img_opencv_y_projection_th = self.cropWordAlg.auto_work(self.img_opencv)
+
+        self.cropWordAlg.auto_work(self.img_opencv)
         self.lineEdit0.setText(str(self.cropWordAlg.getImgGrayThreshold()))
-        self.show_img_opencv_YProject(self.img_opencv_y_projection)
-        self.show_img_opencv_YProjectTh(self.img_opencv_y_projection_th)
+        self.show_img_opencv_YProject(self.cropWordAlg.getYprojectionImg())
+        self.show_img_opencv_YProjectTh(self.cropWordAlg.getYprojectionImgTh())
 
 
 
