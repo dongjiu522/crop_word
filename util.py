@@ -9,8 +9,11 @@ def cv_imread(file_path):
     cv_img = cv2.imdecode(np.fromfile(file_path,dtype=np.uint8),-1)
     return cv_img
 def cv_write(img_path,im):
+    img_full_path = img_path + ".png"
     os.makedirs(os.path.dirname(img_path),exist_ok=True)
-    cv2.imencode('.png',im)[1].tofile(img_path+".png")
+    if True == os.path.exists(img_full_path):
+        os.remove(img_full_path)
+    cv2.imencode('.png',im)[1].tofile(img_full_path)
 
 
 def download_img(img,out_path,str,downloadImg=True,do_log=False):

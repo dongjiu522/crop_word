@@ -26,6 +26,18 @@ class CROP_WORD_ALG:
     y_bin_width_threshold = 20
     y_bins_dis_threshold = 5
     y_bins_expan_width = 5
+
+
+
+
+    x_bins = []
+    x_project_threshold = 3
+    x_bin_width_threshold = 10
+    x_bins_dis_threshold = 3
+    x_bins_expan_width =   5
+
+    bins = []
+
     def setOutputMiddlePath(self,path):
         self.output_middle_path = path
 
@@ -81,7 +93,24 @@ class CROP_WORD_ALG:
     def setYprojectionBinDisThreshold(self,t):
         self.y_bins_dis_threshold = t
 
+    def cleanState(self):
+        self.output_middle_path = "./output_middle"
 
+        self.is_handwriting_black = False
+        self.is_auto_threshold = True
+
+        self.img_gray_threshold = 0
+
+        self.y_projection_img = []
+        self.y_project_threshold = 0
+        self.is_auto_y_project_threshold = True
+        self.y_project_threshold_scale = 0.5
+        self.y_projection_array_th_img = []
+
+        self.y_bins = []
+        self.y_bin_width_threshold = 20
+        self.y_bins_dis_threshold = 5
+        self.y_bins_expan_width = 5
 
 
     #通用函数
@@ -96,7 +125,9 @@ class CROP_WORD_ALG:
         tmp = array.copy()
         tmp[tmp < (th)] = 0
         return tmp
-
+    def clearMiddleDirs(self):
+        if True == os.path.exists(self.output_middle_path):
+            remove_dirs(self.output_middle_path)
 
 
     def compute_threshold(self, img_gray):
@@ -347,10 +378,8 @@ class CROP_WORD_ALG:
         elif len(bins)  >=2 :
             bin_start, bin_end,flag = bins[0]
             bins[0] = (max(0,bin_start - self.y_bins_expan_width),bin_end,flag)
-            bin_start, bin_end,flag = bins[-1]
-            bins[-1] = (bin_start,min(bin_end + self.y_bins_expan_width,int(project_array_width)-1),flag)
-
-
+            bin_start_2, bin_end_2,flag_2 = bins[-1]
+            bins[-1] = (bin_start_2,min(bin_end_2 + self.y_bins_expan_width,int(project_array_width)-1),flag)
 
         return bins
 
@@ -359,7 +388,7 @@ class CROP_WORD_ALG:
         img_tmp = img_colours.copy()
         index = 0
         for trough_index_start,trough_index_end,flag in bins:
-            if flag != 1:
+            if flag < 0 :
                 continue
             cv2.line(img_tmp, (trough_index_start, 0), (trough_index_start, img_gray_h),   (0,255,0),2)
             cv2.line(img_tmp, (trough_index_end, 0), (trough_index_end, img_gray_h),       (0,0,255),2)
@@ -382,6 +411,75 @@ class CROP_WORD_ALG:
         x_projection_array = np.sum(binary, axis=1) /255
         x_projection_array = self.moving_average(x_projection_array,5)
         return x_projection_array
+
+    def cropYProjectBinsToImg(self,img_color,img_gray,bins):
+        img_gray_h, img_gray_w = img_gray.shape
+        img_tmp = img_gray.copy()
+        index = 0
+        bins_and_img = []
+        for bin_start, bin_end,flag in bins:
+            if flag < 0 :
+                continue
+            img_gray_crop = img_gray[:, bin_start:bin_end]
+            img_color_crop = img_color[:, bin_start:bin_end]
+            bins_and_img.append((bin_start,bin_end,flag,img_gray_crop,img_color_crop))
+            download_img(img_color_crop, self.output_middle_path, "10-img_y_project_crop_" + str(index))
+            index = index + 1
+        return bins_and_img
+    def XProjectPostProcessToBins(self,):
+
+        return
+    def converXProjectToImg(self,x_projection_array):
+        x_projection_array_max = np.max(x_projection_array).astype(int)
+
+        #保护下,防止图像大小为0
+        x_projection_array_max = max(20,x_projection_array_max)
+        x_projection_img = np.zeros((len(x_projection_array),int(x_projection_array_max), 3), dtype=np.uint8)
+        x_projection_img[:] = 255
+        for i in range(len(x_projection_array)):
+            if x_projection_array[i] != 0:
+                cv2.line(x_projection_img, (int(x_projection_array_max - x_projection_array[i]),i ),
+                         (int(x_projection_array_max),i), (255, 0, 0))
+        return x_projection_img
+
+    def drawLineFromXProjectBinsToImg(self, img_colours, bins):
+        img_gray_h, img_gray_w,img_gray_c = img_colours.shape
+        img_tmp = img_colours.copy()
+
+        for trough_index_start,trough_index_end,flag in bins:
+            if flag < 0 :
+                continue
+            cv2.line(img_tmp, (0,trough_index_start), (img_gray_w,trough_index_start),   (0,255,0),2)
+            cv2.line(img_tmp, (0,trough_index_end), (img_gray_w,trough_index_end),       (0,0,255),2)
+            cv2.line(img_tmp, (int(img_gray_w/4),trough_index_start), (int(img_gray_w/4),trough_index_end), (0, 0, 0), 2)
+
+        return img_tmp
+
+    def porcessYProjectBinsAndImg(self,bins_and_img):
+
+        bins = []
+        index = 0
+        for y_bin_start, y_bin_end, flag, y_project_img_gray_crop,y_project_img_color_crop in bins_and_img:
+            x_projection_array = self.XProject(y_project_img_gray_crop)
+            x_projection_array_img = self.converXProjectToImg(x_projection_array)
+            download_img(x_projection_array_img, self.output_middle_path, "10-img_y_project_crop_" + str(index) + "_x_projection_array_img")
+
+            x_projection_array_th = self.arrayThreshold(x_projection_array,self.x_project_threshold)
+            x_projection_array_th_img = self.converXProjectToImg(x_projection_array_th)
+            download_img(x_projection_array_th_img, self.output_middle_path,
+                         "10-img_y_project_crop_" + str(index) + "_x_projection_array_th_img")
+
+            # 将水平投影转成bins
+            x_bins = self.YProjectPostProcessToBins(x_projection_array_th)
+            x_bins = self.binsPostProcess(x_projection_array_th, x_bins, self.x_bin_width_threshold, self.x_bins_dis_threshold)
+            x_bins_img = self.drawLineFromXProjectBinsToImg(y_project_img_color_crop,x_bins)
+            download_img(x_bins_img, self.output_middle_path,"10-img_y_project_crop_" + str(index) + "_x_bins_img")
+            for x_bin in x_bins:
+                x_bin_start, x_bin_end, flag  =  x_bin
+                bins.append((y_bin_start,y_bin_end,x_bin_start,x_bin_end))
+            #放最后
+            index = index + 1
+        return bins
 
     def converToBinsFromSignPeakArray(self,array):
         peaks_satrt = np.where(array == -1)
@@ -418,13 +516,21 @@ class CROP_WORD_ALG:
         #计算bins后处理的宽度阈值和距离阈值
         #应该不用计算
 
-        #垂直投影bins后处理
+        #垂直投影bins后处理,已经ok
         self.y_bins = self.binsPostProcess(self.y_projection_array_th,self.y_bins,self.y_bin_width_threshold,self.y_bins_dis_threshold)
 
         #将垂直投影的bins画到图像上
         self.y_projection_img = self.drawLineFromYProjectBinsToImg(self.y_projection_img,self.y_bins)
         self.y_projection_img = self.drawLineFromYProjectThresholdToImg(self.y_projection_img,self.y_project_threshold)
         self.y_projection_array_th_img = self.drawLineFromYProjectBinsToImg(self.y_projection_array_th_img, self.y_bins)
+
+
+
+        #获得每一列垂直投影的抠图
+        self.y_project_bins_and_img = self.cropYProjectBinsToImg(input,self.img_gray_pre_processed,self.y_bins)
+        self.porcessYProjectBinsAndImg(self.y_project_bins_and_img )
+
+
 
 
 

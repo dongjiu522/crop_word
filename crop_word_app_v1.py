@@ -299,7 +299,7 @@ class CROP_WORD_APP(QWidget):
         self.label1 = QLabel(self)
         self.label1.setText("图片路径区域")
         self.label1.setFixedSize(self.window_w * self.img_windows_scale, 35)
-        self.label1.move(120, 5)
+        self.label1.move(300, 5)
         self.label1.setStyleSheet("QLabel{background:white;}"
                               "QLabel{color:rgb(300,300,300,120);font-size:20px;font-weight:bold;font-family:宋体;}"
                                   )
@@ -309,7 +309,7 @@ class CROP_WORD_APP(QWidget):
         self.label2 = ShowImgLabel(self)
         self.label2.setText("显示图片区域")
         self.label2.setFixedSize(self.window_w * self.img_windows_scale, self.window_h * self.img_windows_scale)
-        self.label2.move(120, 45)
+        self.label2.move(300, 45)
 
         self.label2.setStyleSheet("QLabel{background:white;}"
                               "QLabel{color:rgb(300,300,300,120);font-size:50px;font-weight:bold;font-family:宋体;}"
@@ -320,7 +320,7 @@ class CROP_WORD_APP(QWidget):
         self.label3 = QLabel(self)
         self.label3.setText("显示垂直投影区域")
         self.label3.setFixedSize(self.window_w * self.img_windows_scale, 95)
-        self.label3.move(120, 805)
+        self.label3.move(300, 805)
         self.label3.setStyleSheet("QLabel{background:white;}"
                               "QLabel{color:rgb(300,300,300,120);font-size:50px;font-weight:bold;font-family:宋体;}"
                                   )
@@ -330,24 +330,10 @@ class CROP_WORD_APP(QWidget):
         self.label4 = QLabel(self)
         self.label4.setText("显示垂直投影阈值化后区域")
         self.label4.setFixedSize(self.window_w * self.img_windows_scale, 95)
-        self.label4.move(120, 905)
+        self.label4.move(300, 905)
         self.label4.setStyleSheet("QLabel{background:white;}"
                               "QLabel{color:rgb(300,300,300,120);font-size:50px;font-weight:bold;font-family:宋体;}"
                                   )
-
-
-
-
-
-        #####################################################################
-        #标签:显示水平投影区域
-        self.label10 = QLabel(self)
-        self.label10.setText("水平投影")
-        self.label10.setFixedSize(150, self.window_h * self.img_windows_scale)
-        self.label10.move(1500, 45)
-        self.label10.setStyleSheet("QLabel{background:white;}"
-                              "QLabel{color:rgb(300,300,300,120);font-size:30px;font-weight:bold;font-family:宋体;}"
-                                   )
 
 
 
@@ -420,6 +406,9 @@ class CROP_WORD_APP(QWidget):
     def autoCropWord(self):
 
         #此处需要将各个lable清除
+        self.cropWordAlg.clearMiddleDirs()
+        self.cropWordAlg.cleanState()
+
 
         if self.isLoadImg == False :
             reply = QMessageBox.question(self, '错误!',
@@ -455,17 +444,17 @@ class CROP_WORD_APP(QWidget):
 
 
         #刷新界面状态
-        self.lineEdit101.setText(str(self.cropWordAlg.getYProjectThreshold()))
-        self.lineEdit102.setText(str(self.cropWordAlg.getYProjectThresholdScale()))
-        self.lineEdit90.setText(str(self.cropWordAlg.getYprojectionBinWidthThreshold()))
-        self.lineEdit95.setText(str(self.cropWordAlg.getYprojectionBinDisThreshold()))
-        self.lineEdit98.setText(str(self.cropWordAlg.getYBinsExpanWidth()))
+        self.lineEdit101.setText(str(int(self.cropWordAlg.getYProjectThreshold())))
+        self.lineEdit102.setText(str(float(self.cropWordAlg.getYProjectThresholdScale())))
+        self.lineEdit90.setText(str(int(self.cropWordAlg.getYprojectionBinWidthThreshold())))
+        self.lineEdit95.setText(str(int(self.cropWordAlg.getYprojectionBinDisThreshold())))
+        self.lineEdit98.setText(str(int(self.cropWordAlg.getYBinsExpanWidth())))
 
-        self.lineEdit103.setText(str(self.cropWordAlg.getYProjectThreshold()))
-        self.lineEdit104.setText(str(self.cropWordAlg.getYProjectThresholdScale()))
-        self.lineEdit110.setText(str(self.cropWordAlg.getYprojectionBinWidthThreshold()))
-        self.lineEdit120.setText(str(self.cropWordAlg.getYprojectionBinDisThreshold()))
-        self.lineEdit99.setText(str(self.cropWordAlg.getYBinsExpanWidth()))
+        self.lineEdit103.setText(str(int(self.cropWordAlg.getYProjectThreshold())))
+        self.lineEdit104.setText(str(float(self.cropWordAlg.getYProjectThresholdScale())))
+        self.lineEdit110.setText(str(int(self.cropWordAlg.getYprojectionBinWidthThreshold())))
+        self.lineEdit120.setText(str(int(self.cropWordAlg.getYprojectionBinDisThreshold())))
+        self.lineEdit99.setText(str(int(self.cropWordAlg.getYBinsExpanWidth())))
 
 
 
